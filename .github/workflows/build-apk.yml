@@ -19,11 +19,12 @@ jobs:
           java-version: '17'
 
       - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
 
       - name: Instalar Android API 35
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Configurar Gradle 8.9
@@ -31,28 +32,32 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Descomprimir, probar y compilar
+      - name: Descomprimir proyecto
         shell: bash
         run: |
-          set -euxo pipefail
-
-          ZIP_FILE="$(find . -maxdepth 1 -type f -name '*.zip' | head -n 1)"
-          test -n "$ZIP_FILE"
-
-          echo "Usando ZIP: $ZIP_FILE"
-
           mkdir -p extracted
+          ZIP_FILE="$(find . -maxdepth 1 -type f -name '*.zip' | head -n 1)"
+          echo "ZIP encontrado: $ZIP_FILE"
           unzip -q "$ZIP_FILE" -d extracted
 
           SETTINGS="$(find extracted -type f -name settings.gradle.kts | head -n 1)"
-          test -n "$SETTINGS"
+          echo "Settings encontrado: $SETTINGS"
 
           PROJECT_DIR="$(dirname "$SETTINGS")"
-          echo "Proyecto encontrado en: $PROJECT_DIR"
+          echo "$PROJECT_DIR" > project_dir.txt
 
+      - name: Ejecutar tests
+        shell: bash
+        run: |
+          PROJECT_DIR="$(cat project_dir.txt)"
           cd "$PROJECT_DIR"
-
           gradle --no-daemon testDebugUnitTest
+
+      - name: Compilar APK
+        shell: bash
+        run: |
+          PROJECT_DIR="$(cat project_dir.txt)"
+          cd "$PROJECT_DIR"
           gradle --no-daemon assembleDebug
 
       - name: Guardar APK
